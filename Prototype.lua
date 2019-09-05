@@ -33,8 +33,8 @@
 -- Author       :   kurapica125@outlook.com                                  --
 -- URL          :   http://github.com/kurapica/PLoop                         --
 -- Create Date  :   2017/04/02                                               --
--- Update Date  :   2019/08/18                                               --
--- Version      :   1.2.14                                                   --
+-- Update Date  :   2019/09/03                                               --
+-- Version      :   1.3.2                                                    --
 --===========================================================================--
 
 -------------------------------------------------------------------------------
@@ -5599,9 +5599,17 @@ do
             -- @owner   enum
             -- @param   target                      the target value only should be 2^n
             -- @param   check                       the check value
-            -- @param   boolean                     true if the check value contains the target value
+            -- @return  boolean                     true if the check value contains the target value
             -- @usage   print(enum.ValidateFlags(4, 7)) -- true : 7 = 1 + 2 + 4
-            ["ValidateFlags"]   = validateflags;
+            ["ValidateFlags"]   = PLOOP_PLATFORM_SETTINGS.TYPE_VALIDATION_DISABLED and validateflags or function(target, check, stack)
+                if not (type(target) == "number" and floor(target) == target and target > 0) then
+                    error("Usage: enum.ValidateFlags(target, check) - the target value must be a positive integer", parsestack(stack) + 1)
+                end
+                if check ~= nil and not (type(check) == "number" and floor(check) == check) then
+                    error("Usage: enum.ValidateFlags(target, check) - the check value must be an integer", parsestack(stack) + 1)
+                end
+                return validateflags(target, check)
+            end;
 
             --- Whether the value is the enumeration's element's name or value
             -- @static
@@ -11649,7 +11657,7 @@ do
             -- @return  default                     the default value
             ["GetDefault"]      = function(self)
                 local info      = _PropertyInfo[self]
-                return info and clone(info[FLD_PROP_DEFAULT]) or ni
+                return info and clone(info[FLD_PROP_DEFAULT]) or nil
             end;
 
             --- Get the property type
@@ -14341,6 +14349,11 @@ do
 
             for i = 1, len do
                 local var       = self[i]
+
+                if not var then
+                    error(strformat("Usage: __Arguments__{...} - the %s type setting is not valid", parseindex(i)), stack)
+                end
+
                 vars[i]         = var
 
                 if var.optional then
