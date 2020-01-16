@@ -14,6 +14,7 @@
     <Script file="System\Recycle.lua"/>
     <Script file="System\Threading.lua"/>
     <Script file="System\Configuration.lua"/>
+    <Script file="System\Observer.lua"/>
 
     <!--System.Collections-->
     <Script file="System\Collections\List.lua"/>
@@ -21,6 +22,7 @@
     <Script file="System\Collections\Proxy.lua"/>
     <Script file="System\Collections\IIndexedListSorter.lua"/>
     <Script file="System\Collections\Array.lua"/>
+    <Script file="System\Collections\Queue.lua"/>
 
     <!--System.Serialization-->
     <Script file="System\Serialization\LuaFormatProvider.lua"/>
@@ -29,4 +31,10 @@
     <!--System.Text-->
     <Script file="System\Text\UTF8Encoding.lua"/>
     <Script file="System\Text\UTF16Encoding.lua"/>
+
+    <!--System.Reactive-->
+    <Script file="System\Reactive\Observer.lua"/>
+    <Script file="System\Reactive\Observable.lua"/>
+    <Script file="System\Reactive\Subject.lua"/>
+    <Script file="System\Reactive\Operator.lua"/>
 </Ui>
