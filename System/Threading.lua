@@ -8,8 +8,8 @@
 -- Author       :   kurapica125@outlook.com                                  --
 -- URL          :   http://github.com/kurapica/PLoop                         --
 -- Create Date  :   2013/08/13                                               --
--- Update Date  :   2019/12/04                                               --
--- Version      :   1.1.0                                                    --
+-- Update Date  :   2020/03/21                                               --
+-- Version      :   1.1.1                                                    --
 --===========================================================================--
 PLoop(function(_ENV)
     __Final__() __Sealed__() __Abstract__()
@@ -41,6 +41,8 @@ PLoop(function(_ENV)
                 select              = select,
                 tblconcat           = table.concat,
                 strformat           = string.format,
+
+                PREPARE_CONFIRM     = function() end,
             }
 
             export { ThreadPool, Platform, Context }
@@ -83,13 +85,14 @@ PLoop(function(_ENV)
             end
 
             local function preparefunc(pool, thread, func, asiter, ...)
+                if not func then return end
                 local cnt = select("#", ...)
                 returnwithrecycle(pool, thread, asiter, (_PassArgs[cnt] or newPass(cnt))(thread, func, ...))
             end
 
             local function recyclethread(pool, thread)
                 while true do
-                    preparefunc(pool, thread, yield())
+                    preparefunc(pool, thread, yield(PREPARE_CONFIRM))
                 end
             end
 
@@ -97,8 +100,11 @@ PLoop(function(_ENV)
                 local thread        = tremove(self)
 
                 if thread then
-                    thread()            -- resume to prepare
-                    return thread
+                    for i = 1, 2 do
+                        if thread() == PREPARE_CONFIRM then
+                            return thread
+                        end
+                    end
                 end
 
                 thread              = wrap(recyclethread)
