@@ -1,6 +1,23 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+##[1.6.1] - 2020-03-20 WangXH <kurapica125@outlook.com>
+### Changed
+- Fix the problem when provide the return value in an iterator, the next iterator share the same coroutine will trigger error.
+- Remove the ServerRedirect from the HttpResponse, since it may be used to terminate the process like in the Openresty, it's done within the framework, so no code should be modified in the projects.
+
+
+##[1.5.4] - 2020-02-26 WangXH <kurapica125@outlook.com>
+### Changed
+- The `Environment.Apply(func, ...)` can provide arguments for the target function
+- Improve the method validation error message for the data base and data cache system
+
+
+##[1.5.3] - 2020-02-19 WangXH <kurapica125@outlook.com>
+### Changed
+- The List and Dictionary can chain same queue method like `List(10):Map("x=>x^2"):Map("x=>x+1"):Each(print)`
+
+
 ##[1.5.2] - 2019-12-27 WangXH <kurapica125@outlook.com>
 ### Changed
 - If use the `System.__Recycable__` mark the classes, the class can collect disposed objects in the `__dtor` method, can re use them by the `__new` method, since they all disposed, they should be used as new object and passed to the `__ctor` method.
