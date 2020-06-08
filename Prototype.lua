@@ -33,8 +33,8 @@
 -- Author       :   kurapica125@outlook.com                                  --
 -- URL          :   http://github.com/kurapica/PLoop                         --
 -- Create Date  :   2017/04/02                                               --
--- Update Date  :   2020/05/22                                               --
--- Version      :   1.6.6                                                    --
+-- Update Date  :   2020/06/08                                               --
+-- Version      :   1.6.8                                                    --
 --===========================================================================--
 
 -------------------------------------------------------------------------------
@@ -4443,6 +4443,7 @@ do
             ["GetStructCategory"] = function(target)
                 local info      = getStructTargetInfo(target)
                 if info then
+                    if info[FLD_STRUCT_COMBTYPE1] then return STRUCT_TYPE_CUSTOM end
                     if info[FLD_STRUCT_ARRAY] then return STRUCT_TYPE_ARRAY end
                     if info[FLD_STRUCT_MEMBERSTART] then return STRUCT_TYPE_MEMBER end
                     if info[FLD_STRUCT_KEYTYPE] or info[FLD_STRUCT_VALTYPE] then return STRUCT_TYPE_DICT end
@@ -12714,9 +12715,11 @@ do
     namespace.SaveNamespace("System.__AutoCache__",         prototype {
         __index                 = {
             ["ApplyAttribute"]  = function(self, target, targettype, manager, owner, name, stack)
-                class.SetMethodAutoCache(target, parsestack(stack) + 1)
+                if targettype == ATTRTAR_CLASS then
+                    class.SetMethodAutoCache(target, parsestack(stack) + 1)
+                end
             end,
-            ["AttributeTarget"] = ATTRTAR_CLASS,
+            ["AttributeTarget"] = ATTRTAR_CLASS + ATTRTAR_INTERFACE,
         },
         __call = regSelfOrObject, __newindex = readonly, __tostring = getAttributeName
     })
@@ -13023,9 +13026,11 @@ do
     namespace.SaveNamespace("System.__ObjectAttr__",           prototype {
         __index                 = {
             ["ApplyAttribute"]  = function(self, target, targettype, manager, owner, name, stack)
-                class.SetObjectAttributeEnabled(target, parsestack(stack) + 1)
+                if targettype == ATTRTAR_CLASS then
+                    class.SetObjectAttributeEnabled(target, parsestack(stack) + 1)
+                end
             end,
-            ["AttributeTarget"] = ATTRTAR_CLASS,
+            ["AttributeTarget"] = ATTRTAR_CLASS + ATTRTAR_INTERFACE,
         },
         __call = regSelfOrObject, __newindex = readonly, __tostring = getAttributeName
     })
@@ -13039,9 +13044,11 @@ do
     namespace.SaveNamespace("System.__ObjFuncAttr__",           prototype {
         __index                 = {
             ["ApplyAttribute"]  = function(self, target, targettype, manager, owner, name, stack)
-                class.SetObjectFunctionAttributeEnabled(target, parsestack(stack) + 1)
+                if targettype == ATTRTAR_CLASS then
+                    class.SetObjectFunctionAttributeEnabled(target, parsestack(stack) + 1)
+                end
             end,
-            ["AttributeTarget"] = ATTRTAR_CLASS,
+            ["AttributeTarget"] = ATTRTAR_CLASS + ATTRTAR_INTERFACE,
         },
         __call = regSelfOrObject, __newindex = readonly, __tostring = getAttributeName
     })
@@ -13133,9 +13140,11 @@ do
     namespace.SaveNamespace("System.__SingleVer__",             prototype {
         __index                 = {
             ["ApplyAttribute"]  = function(self, target, targettype, manager, owner, name, stack)
-                class.SetSingleVersion(target, parsestack(stack) + 1)
+                if targettype == ATTRTAR_CLASS then
+                    class.SetSingleVersion(target, parsestack(stack) + 1)
+                end
             end,
-            ["AttributeTarget"] = ATTRTAR_CLASS,
+            ["AttributeTarget"] = ATTRTAR_CLASS + ATTRTAR_INTERFACE,
         },
         __call = regSelfOrObject, __newindex = readonly, __tostring = getAttributeName
     })
