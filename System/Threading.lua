@@ -8,8 +8,8 @@
 -- Author       :   kurapica125@outlook.com                                  --
 -- URL          :   http://github.com/kurapica/PLoop                         --
 -- Create Date  :   2013/08/13                                               --
--- Update Date  :   2020/03/21                                               --
--- Version      :   1.1.1                                                    --
+-- Update Date  :   2020/06/25                                               --
+-- Version      :   1.1.2                                                    --
 --===========================================================================--
 PLoop(function(_ENV)
     __Final__() __Sealed__() __Abstract__()
@@ -78,6 +78,7 @@ PLoop(function(_ENV)
                     if select("#", ...) > 0 then
                         yield(...)              -- return the value
                     end
+                    yield()                     -- make sure the iterator don't resume again
                     yield()
                 else
                     yield(...)
@@ -100,7 +101,7 @@ PLoop(function(_ENV)
                 local thread        = tremove(self)
 
                 if thread then
-                    for i = 1, 2 do
+                    for i = 1, 3 do
                         if thread() == PREPARE_CONFIRM then
                             return thread
                         end
@@ -206,10 +207,27 @@ PLoop(function(_ENV)
             --
             --          -- Also can be used as
             --          for k, v in Threading.Iterator(a, 1, 3) do print(k, v) end
-            __Arguments__{ Function, Any * 0 }
-            function GetIterator(self, func, ...)
-                local thread        = newrecyclethread(self)
-                return thread(func, true, ...)
+            if Platform.THREAD_SAFE_ITERATOR then
+                local function safeIteratorCall(msg, ...)
+                    if msg == "cannot resume dead coroutine" then return end
+                    return msg, ...
+                end
+
+                __Arguments__{ Function, Any * 0 }
+                function GetIterator(self, func, ...)
+                    local thread    = newrecyclethread(self)
+                    local wrap      = thread(func, true, ...)
+
+                    return function(...)
+                        return safeIteratorCall(wrap(...))
+                    end
+                end
+            else
+                __Arguments__{ Function, Any * 0 }
+                function GetIterator(self, func, ...)
+                    local thread    = newrecyclethread(self)
+                    return thread(func, true, ...)
+                end
             end
 
             -----------------------------------------------------------
