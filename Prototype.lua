@@ -33,8 +33,8 @@
 -- Author       :   kurapica125@outlook.com                                  --
 -- URL          :   http://github.com/kurapica/PLoop                         --
 -- Create Date  :   2017/04/02                                               --
--- Update Date  :   2020/07/26                                               --
--- Version      :   1.6.9                                                    --
+-- Update Date  :   2020/08/18                                               --
+-- Version      :   1.6.12                                                   --
 --===========================================================================--
 
 -------------------------------------------------------------------------------
@@ -432,59 +432,83 @@ do
     --                         flags management                          --
     -----------------------------------------------------------------------
     if LUA_VERSION >= 5.3 then
-        validateflags           = loadstring [[
-            return function(checkValue, targetValue)
-                return (checkValue & (targetValue or 0)) > 0
-            end
-        ]] ()
+        lshift                  = loadstring [[ return function(x, n) return x << n end ]] ()
+        rshift                  = loadstring [[ return function(x, n) return x >> n end ]] ()
+        band                    = loadstring [[ return function(x, n) return x & n  end ]] ()
+        bnot                    = loadstring [[ return function(x)    return ~x     end ]] ()
+        bor                     = loadstring [[ return function(x, n) return x | n  end ]] ()
+        bxor                    = loadstring [[ return function(x, n) return x ~ n  end ]] ()
 
-        turnonflags             = loadstring [[
-            return function(checkValue, targetValue)
-                return checkValue | (targetValue or 0)
-            end
-        ]] ()
+        validateflags           = loadstring [[ return function(x, n) return (x & (n or 0)) > 0 end ]] ()
+        turnonflags             = loadstring [[ return function(x, n) return x | (n or 0) end ]] ()
+        turnoffflags            = loadstring [[ return function(x, n) return (~x) & (n or 0) end ]] ()
+    elseif ((LUA_VERSION == 5.2 and type(_G.bit32) == "table") or (LUA_VERSION == 5.1 and type(_G.bit) == "table")) then
+        lshift                  = _G.bit32 and _G.bit32.lshift  or _G.bit.lshift
+        rshift                  = _G.bit32 and _G.bit32.rshift  or _G.bit.rshift
+        band                    = _G.bit32 and _G.bit32.band    or _G.bit.band
+        bnot                    = _G.bit32 and _G.bit32.bnot    or _G.bit.bnot
+        bor                     = _G.bit32 and _G.bit32.bor     or _G.bit.bor
+        bxor                    = _G.bit32 and _G.bit32.bxor    or _G.bit.bxor
 
-        turnoffflags            = loadstring [[
-            return function(checkValue, targetValue)
-                return (~checkValue) & (targetValue or 0)
-            end
-        ]] ()
-    elseif (LUA_VERSION == 5.2 and type(_G.bit32) == "table") or (LUA_VERSION == 5.1 and type(_G.bit) == "table") then
-        local band              = _G.bit32 and _G.bit32.band or _G.bit.band
-        local bor               = _G.bit32 and _G.bit32.bor  or _G.bit.bor
-        local bnot              = _G.bit32 and _G.bit32.bnot or _G.bit.bnot
-
-        validateflags           = function (checkValue, targetValue)
-            return band(checkValue, targetValue or 0) > 0
-        end
-
-        turnonflags             = function (checkValue, targetValue)
-            return bor(checkValue, targetValue or 0)
-        end
-
-        turnoffflags            = function (checkValue, targetValue)
-            return band(bnot(checkValue), targetValue or 0)
-        end
+        validateflags           = function (x, n) return band(x, n or 0) > 0 end
+        turnonflags             = function (x, n) return bor(x, n or 0) end
+        turnoffflags            = function (x, n) return band(bnot(x), n or 0) end
     else
-        validateflags           = function (checkValue, targetValue)
-            if not targetValue or checkValue > targetValue then return false end
-            targetValue = targetValue % (2 * checkValue)
-            return (targetValue - targetValue % checkValue) == checkValue
+        -- Create the custom bit lib, for simple, don't check whether the number is integer
+        local MOD               = 2^32
+        local MODMAX            = MOD - 1
+        local xorcache          = { [0]={[0]=0,[1]=1}, [1]={[0]=1,[1]=0} }
+
+        for i = 0, 15 do
+            xorcache[i]         = xorcache[i] or {}
+
+            for j = 0, 15 do
+                if not xorcache[i][j] then
+                    local a, b  = i, j
+                    local res,p = 0,1
+                    while a ~= 0 and b ~= 0 do
+                      local am, bm = a % 2, b % 2
+                      res       = res + xorcache[am][bm] * p
+                      a         = (a - am) / 2
+                      b         = (b - bm) / 2
+                      p         = p * 2
+                    end
+                    xorcache[i][j] = res + (a + b) * p
+                end
+            end
         end
 
-        turnonflags             = function (checkValue, targetValue)
-            if not validateflags(checkValue, targetValue) then
-                return checkValue + (targetValue or 0)
-            end
-            return targetValue
-        end
+        local bit_bxor          = function (a, b)
+                                    local res,p = 0,1
+                                    while a ~= 0 and b ~= 0 do
+                                        local am, bm = a % 16, b % 16
+                                        res = res + xorcache[am][bm] * p
+                                        a   = (a - am) / 16
+                                        b   = (b - bm) / 16
+                                        p   = p * 16
+                                    end
+                                    res = res + (a + b) * p
+                                    return res
+                                end
 
-        turnoffflags            = function (checkValue, targetValue)
-            if validateflags(checkValue, targetValue) then
-                return targetValue - checkValue
-            end
-            return targetValue
-        end
+        local tobit             = function(x) x = x % MOD return x >= 0x80000000 and (x - MOD) or x end
+        local bit_bnot          = function(a) return MODMAX - a end
+        local bit_band          = function(a, b) return ((a+b) - bit_bxor(a,b))/2 end
+        local bit_bor           = function(a, b) return MODMAX - bit_band(MODMAX - a, MODMAX - b) end
+        local bit_rshift, bit_lshift
+        bit_rshift              = function(a, d) return d < 0 and bit_lshift(a, -d) or floor(a % MOD / 2^d) end
+        bit_lshift              = function(a, d) return d < 0 and bit_rshift(a, -d) or (a * 2^d) % MOD end
+
+        lshift                  = function(a, d) return tobit(bit_lshift(a % MOD, d % 32)) end
+        rshift                  = function(a, d) return tobit(bit_rshift(a % MOD, d % 32)) end
+        band                    = function(a, b) return tobit(bit_band(a % MOD, b % MOD)) end
+        bnot                    = function(a)    return tobit(bit_bnot(a % MOD)) end
+        bor                     = function(a, b) return tobit(bit_bor(a % MOD, b % MOD)) end
+        bxor                    = function(a, b) return tobit(bit_bxor(a % MOD, b % MOD)) end
+
+        validateflags           = function (x, n) if not n or x > n then return false end n = n % (2 * x) return (n - n % x) == x end
+        turnonflags             = function (x, n) return validateflags(x, n) and n or (x + (n or 0)) end
+        turnoffflags            = function (x, n) return validateflags(x, n) and (n - x) or n end
     end
 
     -----------------------------------------------------------------------
@@ -3011,6 +3035,8 @@ do
 
     local _ValidTypeCombine     = newstorage(WEAK_KEY)
     local _UnmSubTypeMap        = newstorage(WEAK_ALL)
+    local _AnonyArrayType       = newstorage(WEAK_ALL)
+    local _AnonyHashType        = newstorage(WEAK_ALL)
 
     -----------------------------------------------------------------------
     --                          private helpers                          --
@@ -4856,6 +4882,45 @@ do
         },
         __newindex              = readonly,
         __call                  = function(self, ...)
+            -- For simple, only re-use anonymous type generated with one table and one key-value pairs
+            local _arrayType
+            local _hashKeyType, _hashValType
+
+            if select("#", ...) == 1 then
+                local definition= ...
+                if type(definition) == "table" then
+                    local k, v
+                    for i, j in pairs, definition do
+                        if k then k = nil break end
+                        k, v    = i, j
+                    end
+                    if k and v then
+                        if type(k) == "number" then
+                            if getprototypemethod(v, "ValidateValue") then
+                                _arrayType  = v
+                                local stype = _AnonyArrayType[v]
+                                if stype then
+                                    -- Clear the keyword accessor
+                                    environment.GetKeywordVisitor(struct)
+                                    return stype
+                                end
+                            end
+                        else
+                            if getprototypemethod(k, "ValidateValue") and getprototypemethod(v, "ValidateValue") then
+                                _hashKeyType, _hashValType = k, v
+                                local stype = _AnonyHashType[k]
+                                stype       = stype and stype[v]
+                                if stype then
+                                    -- Clear the keyword accessor
+                                    environment.GetKeywordVisitor(struct)
+                                    return stype
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
             local visitor, env, target, definition, keepenv, stack  = getTypeParams(struct, tstruct, ...)
             if not target then error("Usage: struct([env, ][name, ][definition, ][keepenv, ][stack]) - the struct type can't be created", stack) end
 
@@ -4874,6 +4939,17 @@ do
             environment.SetNamespace(builder, target)
             environment.SetParent   (builder, env)
             environment.SetDefinitionMode(builder, true)
+
+            -- Seal the anonymous type directly
+            if _arrayType or _hashKeyType then
+                struct.SetSealed(target, stack)
+
+                if _arrayType then
+                    _AnonyArrayType = savestorage(_AnonyArrayType, _arrayType, target)
+                else
+                    _AnonyHashType  = savestorage(_AnonyHashType, _hashKeyType, savestorage(_AnonyHashType[_hashKeyType] or {}, _hashValType, target))
+                end
+            end
 
             _StructBuilderInDefine = savestorage(_StructBuilderInDefine, builder, true)
 
@@ -5281,6 +5357,7 @@ do
     local MOD_SEALED_ENUM       = newflags(true)    -- SEALED
     local MOD_FLAGS_ENUM        = newflags()        -- FLAGS
     local MOD_NOT_FLAGS         = newflags()        -- NOT FLAG
+    local MOD_SHARE_VALUE       = newflags()        -- ALLOW THE SAME VALUE
 
     -- FIELD INDEX
     local FLD_ENUM_MOD          = newindex(0)       -- FIELD MODIFIER
@@ -5353,12 +5430,18 @@ do
                     if not def then error(strformat("Usage: enum.AddElement(enumeration, key, value[, stack]) - The %s's definition is finished", tostring(target)), stack) end
                     if type(key) ~= "string" then error("Usage: enum.AddElement(enumeration, key, value[, stack]) - The key must be a string", stack) end
 
-                    for k, v in pairs, info[FLD_ENUM_ITEMS] do
-                        if k == key then
-                            if v == value then return end
-                            error("Usage: enum.AddElement(enumeration, key, value[, stack]) - The key already existed", stack)
-                        elseif v == value then
-                            error("Usage: enum.AddElement(enumeration, key, value[, stack]) - The value already existed", stack)
+                    if validateflags(MOD_SHARE_VALUE, info[FLD_ENUM_MOD]) then
+                        if info[FLD_ENUM_ITEMS][key] ~= nil and info[FLD_ENUM_ITEMS][key] ~= value then
+                            error("Usage: enum.AddElement(enumeration, key, value[, stack]) - The key " .. tostring(key) .. " already existed", stack)
+                        end
+                    else
+                        for k, v in pairs, info[FLD_ENUM_ITEMS] do
+                            if k == key then
+                                if v == value then return end
+                                error("Usage: enum.AddElement(enumeration, key, value[, stack]) - The key " .. tostring(key) .. " already existed", stack)
+                            elseif v == value then
+                                error("Usage: enum.AddElement(enumeration, key, value[, stack]) - The value for key " .. tostring(key) .. " already existed", stack)
+                            end
                         end
                     end
 
@@ -5498,6 +5581,17 @@ do
                 return info and validateflags(MOD_SEALED_ENUM, info[FLD_ENUM_MOD]) or false
             end;
 
+            -- Whether the enumeration allow multiple enum name share the same value
+            -- @static
+            -- @member IsValueShareable
+            -- @owner   enum
+            -- @param   enumeration                 the enumeration
+            -- @return  boolean                     true if the enumeration can share the same value
+            ["IsValueShareable"]= function(target)
+                local info      = getEnumTargetInfo(target)
+                return info and validateflags(MOD_SHARE_VALUE, info[FLD_ENUM_MOD]) or false
+            end;
+
             --- Whether the enumeration is sub-type of others, always false, needed by struct system
             -- @static
             -- @method  IsSubType
@@ -5586,6 +5680,26 @@ do
                     end
                 else
                     error("Usage: enum.SetFlagsEnum(enumeration[, stack]) - The enumeration is not valid", stack)
+                end
+            end;
+
+            -- Set the enumeration whether allow multiple enum name share the same value
+            -- @static
+            -- @member SetValueShareable
+            -- @owner   enum
+            -- @param   enumeration                 the enumeration
+            -- @return  boolean                     true if the enumeration can share the same value
+            ["SetValueShareable"]= function(target, stack)
+                local info, def = getEnumTargetInfo(target)
+                stack           = parsestack(stack) + 1
+
+                if info then
+                    if not validateflags(MOD_SHARE_VALUE, info[FLD_ENUM_MOD]) then
+                        if not def then error(strformat("Usage: enum.SetFlagsEnum(enumeration[, stack]) - The %s's definition is finished", tostring(target)), stack) end
+                        info[FLD_ENUM_MOD] = turnonflags(MOD_SHARE_VALUE, info[FLD_ENUM_MOD])
+                    end
+                else
+                    error("Usage: enum.SetValueShareable(enumeration[, stack]) - The enumeration is not valid", stack)
                 end
             end;
 
@@ -12720,43 +12834,81 @@ do
     --
     -- @attribute   System.__AutoCache__
     -----------------------------------------------------------------------
-    namespace.SaveNamespace("System.__AutoCache__",         prototype {
+    __AutoCache__ = namespace.SaveNamespace("System.__AutoCache__",         prototype {
         __index                 = {
             ["ApplyAttribute"]  = function(self, target, targettype, manager, owner, name, stack)
                 if targettype == ATTRTAR_CLASS then
                     class.SetMethodAutoCache(target, parsestack(stack) + 1)
                 end
             end,
-            ["InitDefinition"]  = function(self, target, targettype, definition, owner, name, stack)
-                if targettype == ATTRTAR_FUNCTION or targettype == ATTRTAR_METHOD then
-                    local root  = setmetatable({}, WEAK_KEY)
+            ["InitDefinition"]  = not PLOOP_PLATFORM_SETTINGS.MULTI_OS_THREAD and
+                function(self, target, targettype, definition, owner, name, stack)
+                    if targettype == ATTRTAR_FUNCTION or targettype == ATTRTAR_METHOD then
+                        local root      = setmetatable({}, WEAK_KEY)
 
-                    return function(...)
-                        local map   = root
+                        return function(...)
+                            local map   = root
 
-                        for i = 1, select("#", ...) do
-                            local v = select(i, ...)
-                            if v == nil then v = regValue end -- as a token
+                            for i = 1, select("#", ...) do
+                                local v = select(i, ...)
+                                if v == nil then v = regValue end -- as a token
 
-                            local n = map[v]
-                            if not n then
-                                n   = setmetatable({}, WEAK_KEY)
-                                map[v] = n
+                                local n = map[v]
+                                if not n then
+                                    n   = setmetatable({}, WEAK_KEY)
+                                    map[v] = n
+                                end
+
+                                map     = n
                             end
 
-                            map     = n
-                        end
+                            if map[fakefunc] then
+                                return unpack(map[fakefunc])
+                            end
 
-                        if map[fakefunc] then
+                            map[fakefunc] = { target(...) }
+
                             return unpack(map[fakefunc])
                         end
-
-                        map[fakefunc] = { target(...) }
-
-                        return unpack(map[fakefunc])
                     end
-                end
-            end,
+                end or getlocal and -- Use Context
+                function(self, target, targettype, definition, owner, name, stack)
+                    if targettype == ATTRTAR_FUNCTION or targettype == ATTRTAR_METHOD then
+                        local root      = setmetatable({}, WEAK_KEY)
+
+                        return function(...)
+                            local ctx   = Context.GetContextFromStack()
+                            if not ctx then return target(...) end
+
+                            local map   = ctx[__AutoCache__]
+                            if not map then
+                                map     = setmetatable({}, WEAK_KEY)
+                                ctx[__AutoCache__] = map
+                            end
+
+                            for i = 1, select("#", ...) do
+                                local v = select(i, ...)
+                                if v == nil then v = regValue end -- as a token
+
+                                local n = map[v]
+                                if not n then
+                                    n   = setmetatable({}, WEAK_KEY)
+                                    map[v] = n
+                                end
+
+                                map     = n
+                            end
+
+                            if map[fakefunc] then
+                                return unpack(map[fakefunc])
+                            end
+
+                            map[fakefunc] = { target(...) }
+
+                            return unpack(map[fakefunc])
+                        end
+                    end
+                end,
             ["AttributeTarget"] = ATTRTAR_CLASS + ATTRTAR_INTERFACE + ATTRTAR_METHOD + ATTRTAR_FUNCTION,
             ["Priority"]        = -1,  -- Magic but the AttributePriority is defined later
         },
@@ -12991,6 +13143,21 @@ do
             end,
             ["ApplyAttribute"]  = function(self, target, targettype, manager, owner, name, stack)
                 enum.SetFlagsEnum(target, parsestack(stack) + 1)
+            end,
+            ["AttributeTarget"] = ATTRTAR_ENUM,
+        },
+        __call = attribute.Register, __newindex = readonly, __tostring = namespace.GetNamespaceName
+    })
+
+    -----------------------------------------------------------------------
+    -- Set the enum as value shareable
+    --
+    -- @attribute   System.__Shareable__
+    -----------------------------------------------------------------------
+    namespace.SaveNamespace("System.__Shareable__",             prototype {
+        __index                 = {
+            ["InitDefinition"]  = function(self, target, targettype, definition, owner, name, stack)
+                enum.SetValueShareable(target, parsestack(stack) + 1)
             end,
             ["AttributeTarget"] = ATTRTAR_ENUM,
         },
@@ -13796,6 +13963,14 @@ do
         -- @return  string
         parseindex              = parseindex,
 
+        --- The bit operations
+        lshift                  = lshift,
+        rshift                  = rshift,
+        band                    = band,
+        bor                     = bor,
+        bnot                    = bnot,
+        bxor                    = bxor,
+
         --- validate flags values
         -- @param   chkvalue        the check value, must be 2^n
         -- @param   targetvalue     the target value
@@ -13819,6 +13994,9 @@ do
 
         --- A writeonly function used by metaw-table
         writeonly               = writeonly,
+
+        --- Trim the string
+        trim                    = strtrim,
     }
 
     -----------------------------------------------------------------------
@@ -15554,45 +15732,49 @@ do
         --                       property                       --
         -----------------------------------------------------------
         --- a message that describes the current exception
-        property "Message"          { type = String }
+        __Abstract__() property "Message"          { type = String, default = "There is an exception occurred" }
+
+        --- The error code
+        __Abstract__() property "Code"             { type = Number }
 
         --- a string representation of the immediate frames on the call stack
-        property "StackTrace"       { type = String }
+        __Abstract__() property "StackTrace"       { type = String }
 
         --- the method that throws the current exception
-        property "TargetSite"       { type = String }
+        __Abstract__() property "TargetSite"       { type = String }
 
         --- the source of the exception
-        property "Source"           { type = String }
+        __Abstract__() property "Source"           { type = String }
 
         --- the Exception instance that caused the current exception
-        property "InnerException"   { type = Exception }
+        __Abstract__() property "InnerException"   { type = Exception }
 
         --- key/value pairs that provide additional information about the exception
-        property "Data"             { type = Table }
+        __Abstract__() property "Data"             { type = Table }
 
         --- key/value pairs of the local variable
-        property "LocalVariables"   { type = Table }
+        __Abstract__() property "LocalVariables"   { type = Table }
 
         --- key/value pairs of the upvalues
-        property "Upvalues"         { type = Table }
+        __Abstract__() property "Upvalues"         { type = Table }
 
         --- whether the stack data is saved, the system will save the stack data
         -- if the value is false when the exception is thrown out
-        property "StackDataSaved"   { type = Boolean,       default = not Platform.EXCEPTION_SAVE_STACK_DATA }
+        __Abstract__() property "StackDataSaved"   { type = Boolean,       default = not Platform.EXCEPTION_SAVE_STACK_DATA }
 
         --- the stack level to be scanned, default 1, where the throw is called
-        property "StackLevel"       { type = NaturalNumber, default = 1 }
+        __Abstract__() property "StackLevel"       { type = NaturalNumber, default = 1 }
 
         --- whether save the local variables and the upvalues for the exception
-        property "SaveVariables"    { type = Boolean,       default = Platform.EXCEPTION_SAVE_VARIABLES }
+        __Abstract__() property "SaveVariables"    { type = Boolean,       default = Platform.EXCEPTION_SAVE_VARIABLES }
 
         -----------------------------------------------------------
         --                      constructor                      --
         -----------------------------------------------------------
-        __Arguments__{ Variable("message", String), Variable("inner", Exception, true), Variable("savevariables", Boolean, true) }
-        function Exception(self, message, inner, savevariables)
+        __Arguments__{ Variable("message", String, true), Variable("code", Number, true), Variable("inner", Exception, true), Variable("savevariables", Boolean, true) }
+        function Exception(self, message, code, inner, savevariables)
             self.Message        = message
+            self.Code           = code
             self.InnerException = inner
             self.SaveVariables  = savevariables
         end
@@ -15855,7 +16037,7 @@ do
     --- Represents the context object used to process the operations in an
     -- os thread, normally used in multi-os thread platforms
     __Sealed__() __NoNilValue__(false):AsInheritable() __NoRawSet__(false):AsInheritable()
-    class (_PLoopEnv, "System.Context") (function(_ENV)
+    Context = class (_PLoopEnv, "System.Context") (function(_ENV)
         export {
             getlocal            = getlocal,
             getobjectclass      = Class.GetObjectClass,
@@ -15916,9 +16098,8 @@ do
         }
     end)
 
-    --- Represents the interface of using coroutine context, which will
-    -- cache all sharable datas for the coroutine, if the platform is
-    -- single os thread, the context will be the same one
+    --- Represents the interface of thread related context, which will
+    -- cache all sharable datas in the same os-thread
     __Sealed__()
     interface "System.IContext" (function(_ENV)
         export {
