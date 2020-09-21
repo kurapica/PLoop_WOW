@@ -177,7 +177,7 @@ PLoop(function(_ENV)
             cache               = cache or isselfreferenced(type) and {}
             if cache then cache[type] = true end
             local ktype         = getdictkey(type)
-            if not (isstruct(ktype) and getstructcategory(ktype) == CUSTOM and isSerializableType(ktype)) then return false end
+            if not (isenum(ktype) or isstruct(ktype) and getstructcategory(ktype) == CUSTOM and isSerializableType(ktype)) then return false end
             local vtype         = getdictval(type)
             if not (vtype and isSerializableType(vtype, cache)) then return false end
             return true
@@ -566,7 +566,7 @@ PLoop(function(_ENV)
 
         --- represents the serializable values
         __Sealed__()
-        struct "Serializable"       { function(val) return not isSerializable(val) and (onlyvalid or "the %s must be serializable") or nil end }
+        struct "Serializable"       { function(val, onlyvalid) return not isSerializable(val) and (onlyvalid or "the %s must be serializable") or nil end }
 
         --- represents the serializable types
         __Sealed__()

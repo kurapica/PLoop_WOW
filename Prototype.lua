@@ -33,8 +33,8 @@
 -- Author       :   kurapica125@outlook.com                                  --
 -- URL          :   http://github.com/kurapica/PLoop                         --
 -- Create Date  :   2017/04/02                                               --
--- Update Date  :   2020/08/18                                               --
--- Version      :   1.6.12                                                   --
+-- Update Date  :   2020/09/09                                               --
+-- Version      :   1.6.21                                                   --
 --===========================================================================--
 
 -------------------------------------------------------------------------------
@@ -591,15 +591,15 @@ do
     --                                log                                --
     -----------------------------------------------------------------------
     local generateLogger        = function (prefix, loglvl)
-        local handler = PLOOP_PLATFORM_SETTINGS.CORE_LOG_HANDLER
+        local handler           = PLOOP_PLATFORM_SETTINGS.CORE_LOG_HANDLER
         return PLOOP_PLATFORM_SETTINGS.CORE_LOG_LEVEL > loglvl and fakefunc or
             function(msg, stack, ...)
                 if type(stack) == "number" then
-                    msg = prefix .. strformat(msg, ...) .. (getcallline(stack + 1) or "")
+                    msg         = prefix .. strformat(msg, ...) .. (getcallline(stack + 1) or "")
                 elseif stack then
-                    msg = prefix .. strformat(msg, stack, ...)
+                    msg         = prefix .. strformat(msg, stack, ...)
                 else
-                    msg = prefix .. msg
+                    msg         = prefix .. msg
                 end
                 return handler(msg, loglvl)
             end
@@ -1978,7 +1978,10 @@ do
             -- @param   namespace                   the target namespace
             ["RegisterGlobalNamespace"] = function(ns)
                 local ns        = namespace.Validate(ns)
-                if ns then uinsert(_GlobalNS, ns) end
+                if ns then
+                    for _, v in ipairs, _GlobalNS, 0 do if v == ns then return end end
+                    tinsert(_GlobalNS, ns)
+                end
             end;
 
             --- Register a context keyword, like property must be used in the
@@ -3794,7 +3797,6 @@ do
             end
 
             tinsert(body, [[end]])
-
             tinsert(body, [[end]])
 
             if #apis > 0 then
@@ -6409,11 +6411,11 @@ do
     -----------------------------------------------------------------------
     --                          private helpers                          --
     -----------------------------------------------------------------------
-    local getICTargetInfo       = function (target) local info  = _ICBuilderInfo[target] if info then return info, true else return _ICInfo[target], false end end
+    local getICTargetInfo       = function (target) local info = _ICBuilderInfo[target] if info then return info, true else return _ICInfo[target], false end end
 
     local saveICInfo            = PLOOP_PLATFORM_SETTINGS.UNSAFE_MODE
-                                    and function(target, info) rawset(target, FLD_IC_META, info) end
-                                    or  function(target, info) _ICInfo = savestorage(_ICInfo, target, info) end
+                                    and function(target, info, init) rawset(target, FLD_IC_META, init and info or clone(info)) end
+                                    or  function(target, info, init) _ICInfo = savestorage(_ICInfo, target, init and info or clone(info)) end -- keep clone here, the memory can be reduced
 
     local saveSuperMap          = PLOOP_PLATFORM_SETTINGS.UNSAFE_MOD
                                     and function(super, target) rawset(super, FLD_IC_TYPE, target) end
@@ -7898,6 +7900,7 @@ do
     interface                   = prototype {
         __tostring              = "interface",
         __index                 = {
+            Get = function(self) return _ICInfo[self] end,
             --- Add an interface to be extended
             -- @static
             -- @method  AddExtend
@@ -8571,7 +8574,7 @@ do
             if not target then error("Usage: interface([env, ][name, ][definition, ][keepenv, ][stack]) - the interface type can't be created", stack) end
 
             if not _ICInfo[target] then
-                saveICInfo(target, getInitICInfo(target, false))
+                saveICInfo(target, getInitICInfo(target, false), true)
             end
 
             stack               = stack + 1
@@ -9510,7 +9513,7 @@ do
             if not target then error("Usage: class([env, ][name, ][definition, ][keepenv, ][stack]) - the class type can't be created", stack) end
 
             if not _ICInfo[target] then
-                saveICInfo(target, getInitICInfo(target, true))
+                saveICInfo(target, getInitICInfo(target, true), true)
             end
 
             stack               = stack + 1
@@ -12947,6 +12950,41 @@ do
     })
 
     -----------------------------------------------------------------------
+    -- Create a enum on a based value like 1100, so the list only allow
+    -- the enum value between 1 and 99, and the base value will be added to them.
+    --
+    -- @attribute   System.__BaseIndex__
+    -- @usage       __BaseIndex__(1100)
+    --              enum "Test" { A = 1, C = 2 } -- The value must in (0, 100)
+    --              print(Test.A, Test.C) -- 1101, 1102
+    -----------------------------------------------------------------------
+    namespace.SaveNamespace("System.__BaseIndex__",             prototype {
+        __index                 = {
+            ["InitDefinition"]  = function(self, target, targettype, definition, owner, name, stack)
+                local base      = self[1]
+                base            = base and tonumber(base)
+                base            = base and floor(base)
+                if not base or base < 10 then error("The __BaseIndex__ only won't accept the base value less than 10", stack + 1) end
+
+                local newdef    = {}
+                local max       = tostring(base):match("0+$")
+                max             = max and tonumber((max:gsub("0", "9"))) or 0
+
+                for name, value in pairs, definition do
+                    if value < 1 or value > max then
+                        error("The " .. name .. " 's value must in [1-" .. max .. "]", stack + 1)
+                    end
+                    newdef[name]= base + value
+                end
+
+                return newdef
+            end,
+            ["AttributeTarget"] = ATTRTAR_ENUM,
+        },
+        __call = regValue, __newindex = readonly, __tostring = getAttributeName
+    })
+
+    -----------------------------------------------------------------------
     -- Set the target struct's base struct, works like
     --
     --          struct "Number" { function (val) return type(val) ~= "number" and "the %s must be number" end }
@@ -14244,7 +14282,7 @@ do
 
             token               = 0
 
-            if not ismulti and CTOR_METHOD[name] and Class.Validate(owner) then
+            if not ismulti and CTOR_METHOD[name] and (Class.Validate(owner) or Interface.Validate(owner)) then
                 isctor          = true
                 token           = turnonflags(FLG_TYP_CONTOR, token)
             end
@@ -14335,7 +14373,7 @@ do
 
                 if isctor then
                     uinsert(apis, "throw")
-                    tinsert(body, [[error = throw]])
+                    tinsert(body, [[local error = throw]])
                 end
 
                 if isbuilder then
@@ -14343,7 +14381,7 @@ do
                     uinsert(apis, "setfenv")
                     uinsert(apis, "throw")
 
-                    tinsert(body, [[error = throw]])
+                    tinsert(body, [[local error = throw]])
                     tinsert(body, [[setfenv(func, getfenv(1))]])
                 end
 
@@ -14730,6 +14768,15 @@ do
             return Class.AttachObjectSource(__Arguments__{ { varargs = true } }, 2)
         end
 
+        -- Add the release method to clear the useless cache for sealed types
+        __Static__() function ClearOverloads(ttype)
+            if not (ttype and getmetatable(ttype).IsSealed(ttype)) then return end
+            _OverloadStorage[ttype] = nil
+        end
+
+        -----------------------------------------------------------
+        --                        method                         --
+        -----------------------------------------------------------
         --- Mark the target function as throwable
         function Throwable(self)
             self.IsThrowable    = true
@@ -14741,9 +14788,6 @@ do
             self.IsThisUsable   = true
         end
 
-        -----------------------------------------------------------
-        --                        method                         --
-        -----------------------------------------------------------
         --- modify the target's definition
         -- @param   target                      the target
         -- @param   targettype                  the target type
@@ -16079,14 +16123,7 @@ do
         end
 
         -----------------------------------------------------------
-        --                        method                         --
-        -----------------------------------------------------------
-        --- Process the operations under the context
-        __Abstract__()
-        function Process(self) end
-
-        -----------------------------------------------------------
-        --                       property                        --
+        --                   static property                     --
         -----------------------------------------------------------
         __Static__()
         --- the current context object
@@ -16096,6 +16133,12 @@ do
                 return ok and ret or nil
             end
         }
+
+        -----------------------------------------------------------
+        --                        method                         --
+        -----------------------------------------------------------
+        --- Process the operations under the context
+        __Abstract__() function Process(self) end
     end)
 
     --- Represents the interface of thread related context, which will
@@ -16132,15 +16175,15 @@ do
     --- Represents the informations of the runtime
     __Final__() __Sealed__() __Abstract__()
     class (_PLoopEnv, "System.Runtime", function(_ENV)
-        export{ Enum, Struct, Class, Interface }
+        export{ Enum, Struct, Class, Interface, __Arguments__ }
 
         --- Fired when a new type is generated
         __Static__() event "OnTypeDefined"
 
         _PLoopEnv.enumdefined       = function(target) OnTypeDefined(Enum, target) end
-        _PLoopEnv.structdefined     = function(target) OnTypeDefined(Struct, target) end
-        _PLoopEnv.interfacedefined  = function(target) OnTypeDefined(Interface, target) end
-        _PLoopEnv.classdefined      = function(target) OnTypeDefined(Class, target) end
+        _PLoopEnv.structdefined     = function(target) __Arguments__.ClearOverloads(target) return OnTypeDefined(Struct, target) end
+        _PLoopEnv.interfacedefined  = function(target) __Arguments__.ClearOverloads(target) return OnTypeDefined(Interface, target) end
+        _PLoopEnv.classdefined      = function(target) __Arguments__.ClearOverloads(target) return OnTypeDefined(Class, target) end
     end)
 end
 

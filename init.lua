@@ -8,10 +8,9 @@ require "PLoop.System.IO.TextAccessor"
 require "PLoop.System.Threading"
 require "PLoop.System.Serialization"
 require "PLoop.System.Date"
+require "PLoop.System.Context"
 require "PLoop.System.Logger"
 require "PLoop.System.Recycle"
-require "PLoop.System.Observer"
-require "PLoop.System.Context"
 
 -- System.Collections
 require "PLoop.System.Collections.List"
@@ -33,9 +32,13 @@ require "PLoop.System.Text.UTF8Encoding"
 require "PLoop.System.Text.UTF16Encoding"
 
 -- System.Reactive
+require "PLoop.System.Observer"
 require "PLoop.System.Reactive.Observer"
 require "PLoop.System.Reactive.Observable"
 require "PLoop.System.Reactive.Subject"
 require "PLoop.System.Reactive.Operator"
+
+-- System.Message
+require "PLoop.System.Message"
 
 return root

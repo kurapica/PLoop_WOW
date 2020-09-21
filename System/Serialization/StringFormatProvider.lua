@@ -19,14 +19,18 @@ PLoop(function(_ENV)
         type                    = type,
         tostring                = tostring,
         next                    = next,
+        select                  = select,
         tinsert                 = table.insert,
         tblconcat               = table.concat,
         strformat               = string.format,
+        safeset                 = Toolset.safeset,
         loadsnippet             = Toolset.loadsnippet,
         validnamespace          = Namespace.Validate,
+        isValidValue            = Struct.ValidateValue,
         isanonymous             = Namespace.IsAnonymousNamespace,
+        Serialize               = Serialization.Serialize,
 
-        Serialization,
+        Serialization.Serializable, Serialization.SerializableType, List, Toolset, Serialization
     }
 
     -----------------------------------------------------------------------
@@ -322,4 +326,57 @@ PLoop(function(_ENV)
             return loadsnippet("return " .. data)()
         end
     end)
+
+
+    --- Convert the data to string
+    __Static__()
+    function Toolset.tostring(data, dtype, pretty)
+        if data == nil then return "nil" end
+        if type(data) ~= "table" then return tostring(data) end
+
+        if dtype then
+            if isValidValue(SerializableType, type) then
+                return Serialize(StringFormatProvider{ Indent = pretty or false, ObjectTypeIgnored = true }, data, dtype)
+            end
+        elseif isValidValue(Serializable, data) then
+            return Serialize(StringFormatProvider{ Indent = pretty or false, ObjectTypeIgnored = true }, data)
+        else
+            return tostring(data)
+        end
+    end
+
+    --- Convert the string to data
+    __Static__()
+    function Toolset.parsestring(string, type)
+        if type then
+            return Deserialize(StringFormatProvider(), string, type)
+        else
+            return Deserialize(StringFormatProvider(), string)
+        end
+    end
+
+    local _ToStringAllHandler   = {}
+
+    --- Convert multiple data to string
+    __Static__()
+    function Toolset.tostringall(...)
+        local count             = select("#", ...)
+        if count == 0 then return end
+
+        local handler           = _ToStringAllHandler[count]
+        if not handler then
+            handler             = loadsnippet(
+                [[
+                    local conv  = ...
+                    return function(]] .. List(count, "i=>'arg' .. i"):Join(",") .. [[)
+                        return ]] .. List(count, "i=>'conv(arg' .. i .. ')'"):Join(",") .. [[
+                    end
+                ]]
+            )(Toolset.tostring)
+
+            _ToStringAllHandler = safeset(_ToStringAllHandler, count, handler)
+        end
+
+        return handler(...)
+    end
 end)

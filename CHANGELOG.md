@@ -1,6 +1,27 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+
+## [1.6.21] = 2020-09-14 WangXH <kurapica125@outlook.com>
+### Added
+- The `__BaseIndex__` attribute is added for enum, it works like `__BaseIndex__(100) enum "Test" { A = 1, B = 2 }`, the base value will be added to the enum values, so `Test.A` will be 101, the enum value is limited to [1-99] based on the zero numbers of the base value.
+
+### Changed
+- The `__Arguments__` will drop the overload information when the type is sealed to reduce the memory usage.
+- A few changes is applied to reduce the memory usage of classes.
+
+
+## [1.6.20] = 2020-08-29 WangXH <kurapica125@outlook.com>
+### Changed
+- The `__DataCacheEnable__` will also works for the data entity's unique indeses, works like `UserDataContext.UserCache:Get{ org = 1, seqno = 5 }`.
+
+## [1.6.19] - 2020-08-18 WangXH <kurapica125@outlook.com>
+### Added
+- The `tostring`, `parsestring` api is added in the `System.Toolset`, they can be used to serialize/deserialize the data object.
+- The `System.Net` namespace is added.
+- The `System.Net.MQTT` namespace is added to support MQTT protocol.
+
+
 ## [1.6.18] - 2020-08-18 WangXH <kurapica125@outlook.com>
 ### Added
 - The `System.__Shareable__` attribute is added for enumeration, so the enum type'll allow the same value for different enum names.
