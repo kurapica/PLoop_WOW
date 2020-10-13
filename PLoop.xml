@@ -33,6 +33,7 @@
     <Script file="System\Text\StringWriter.lua"/>
     <Script file="System\Text\UTF8Encoding.lua"/>
     <Script file="System\Text\UTF16Encoding.lua"/>
+    <Script file="System\Text\Encoder.lua"/>
     <Script file="System\Text\TemplateString.lua"/>
 
     <!--System.Reactive-->
