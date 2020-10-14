@@ -365,6 +365,7 @@ PLoop(function(_ENV)
             error               = error,
             assert              = assert,
             tonumber            = tonumber,
+            tostring            = tostring,
             random              = math.random,
             strlower            = string.lower,
             strformat           = string.format,
@@ -392,6 +393,7 @@ PLoop(function(_ENV)
 
         --- Convert the error to the real position
         local function raiseError(self, err)
+            err                 = tostring(err)
             local line, msg     = err:match("%b[]:(%d+):(.-)$")
             line                = tonumber(line)
             if line and self.CodeLineMap[line] then
@@ -429,7 +431,7 @@ PLoop(function(_ENV)
         property "CodeLineMap"      { set = false, default = Toolset.newtable }
 
         --- The apis could be used in the template string
-        property "APIs"             { set = false, default = function() return { _PL_tostring = _PL_tostring } end }
+        property "APIs"             { set = false, default = function() return { _PL_tostring = function(val) return val == nil and "" or _PL_tostring(val) end } end }
 
         --- The function used to return the generator of the result
         property "Generator"        { }
