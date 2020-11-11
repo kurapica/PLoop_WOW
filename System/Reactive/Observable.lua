@@ -15,23 +15,21 @@
 PLoop(function(_ENV)
     namespace "System.Reactive"
 
-    __Async__() function ProcessTask(func, ...)
-        return func(...)
-    end
-
     __Sealed__() class "Observable" (function(_ENV)
         extend "System.IObservable"
 
         export {
-            Observer, Observable, IObservable,
+            Observer, Observable, IObservable, List,
 
             tostring            = tostring,
             select              = select,
             unpack              = unpack,
             pcall               = pcall,
+            rawset              = rawset,
+            loadsnippet         = Toolset.loadsnippet,
             IsObjectType        = Class.IsObjectType,
             Exception           = System.Exception,
-            ProcessTask         = ProcessTask,
+            RunAsync            = Threading.RunAsync,
         }
 
         -----------------------------------------------------------------------
@@ -66,13 +64,28 @@ PLoop(function(_ENV)
         end
 
         --- Returns an Observable that just provide one value
-        __Static__() function Just(value)
-            return Observable(function(observer)
-                if value ~= nil then observer:OnNext(value) end
-                observer:OnCompleted()
-            end)
+        local _JustAutoGen      = setmetatable({
+            [0]                 = function() return Observable(function(observer) observer:OnCompleted() end) end
+        }, {
+            __index             = function(self, count)
+                local args      = List(count):Map("i=>'arg' .. i"):Join(",")
+                local func      = loadsnippet([[
+                    return function(]] .. args .. [[)
+                        return Observable(function(observer)
+                            observer:OnNext(]] .. args .. [[)
+                            observer:OnCompleted()
+                        end)
+                    end
+                ]], "Just_Gen_" .. count, _ENV)()
+                rawset(self, count, func)
+                return func
+            end
+            }
+        )
+        __Static__() function Just(...)
+            return _JustAutoGen[select("#", ...)](...)
         end
-        __Static__() Return = Just
+        __Static__() Return     = Just
 
         --- Returns and Observable that immediately completes without producing a value
         __Static__() function Empty()
@@ -95,16 +108,29 @@ PLoop(function(_ENV)
         end
 
         --- Creates the Observable only when the observer subscribes
-        __Static__() __Arguments__{ Callable }
-        function Defer(ctor)
-            return Observable(function(observer)
-                local observable= ctor()
-                if not IsObjectType(observable, IObservable) then
-                    observable:OnError(Exception("The defer function doesn't provide valid observable"))
-                else
-                    return observable:Subscribe(observer)
-                end
-            end)
+        local _DeferAutoGen     = setmetatable({}, {
+            __index             = function(self, count)
+                local args      = List(count):Map("i=>'arg' .. i"):Join(",")
+                local func      = loadsnippet([[
+                    return function(ctor, ]] .. args .. [[)
+                        return Observable(function(observer)
+                            local obs   = ctor(]] .. args .. [[)
+                            if not IsObjectType(obs, IObservable) then
+                                observer:OnError(Exception("The defer function doesn't provide valid observable"))
+                            else
+                                return obs:Subscribe(observer)
+                            end
+                        end)
+                    end
+                ]], "Defer_Gen_" .. count, _ENV)()
+                rawset(self, count, func)
+                return func
+            end
+            }
+        )
+        __Static__() __Arguments__{ Callable, Any * 0 }
+        function Defer(ctor, ...)
+            return _DeferAutoGen[select("#", ...)](ctor, ...)
         end
 
         --- Converts collection objects into Observables
@@ -146,10 +172,10 @@ PLoop(function(_ENV)
         end
 
         --- Creates an Observable that emits a particular range of sequential integers
-        __Static__() __Arguments__{ Integer, Integer }
-        function Range(start, length)
+        __Static__() __Arguments__{ Number, Number, Number/nil }
+        function Range(start, stop, step)
             return Observable(function(observer)
-                for i = start, start + length - 1 do
+                for i = start, stop, step or 1 do
                     if observer.IsUnsubscribed then return end
                     observer:OnNext(i)
                 end
@@ -158,40 +184,64 @@ PLoop(function(_ENV)
         end
 
         --- Creates an Observable that emits a particular item multiple times
-        __Static__() __Arguments__{ Any, Number }
-        function Repeat(value, count)
-            return Observable(function(observer)
-                local i         = 0
+        local _RepeatGen        = setmetatable({}, {
+            __index             = function(self, count)
+                local args      = List(count):Map("i=>'arg' .. i"):Join(",")
+                local func      = loadsnippet([[
+                    return function(count, ]] .. args .. [[)
+                        return Observable(function(observer)
+                            local i = 0
 
-                while i < count do
-                    if observer.IsUnsubscribed then return end
-                    observer:OnNext(value)
-                    i           = i + 1
-                end
-                observer:OnCompleted()
-            end)
+                            while i < count do
+                                if observer.IsUnsubscribed then return end
+                                observer:OnNext(]] .. args .. [[)
+                                i   = i + 1
+                            end
+                            observer:OnCompleted()
+                        end)
+                    end
+                ]], "Repeat_Gen_" .. count, _ENV)()
+                rawset(self, count, func)
+                return func
+            end
+            }
+        )
+        __Static__() __Arguments__{ Number, Any * 1 }
+        function Repeat(count, ...)
+            return _RepeatGen[select("#", ...)](count, ...)
         end
 
         --- Creates an Observable that emits the return value of a function-like directive
+        local _StartGen         = setmetatable({
+            [0]                 = function(func)
+                return Observable(function(observer)
+                    RunAsync(function()
+                        observer:OnNext(func())
+                        observer:OnCompleted()
+                    end)
+                end)
+            end
+        }, {
+            __index             = function(self, count)
+                local args      = List(count):Map("i=>'arg' .. i"):Join(",")
+                local func      = loadsnippet([[
+                    return function(func, ]] .. args .. [[)
+                        return Observable(function(observer)
+                            RunAsync(function()
+                                observer:OnNext(func(]] .. args .. [[))
+                                observer:OnCompleted()
+                            end)
+                        end)
+                    end
+                ]], "Start_Gen_" .. count, _ENV)()
+                rawset(self, count, func)
+                return func
+            end
+            }
+        )
         __Static__() __Arguments__{ Callable, Any * 0 }
         function Start(func, ...)
-            local a1, a2, a3, a4
-            local args
-            if select("#", ...) > 4 then
-                args            = { ... }
-            else
-                a1, a2, a3, a4  = ...
-            end
-            return Observable(function(observer)
-                ProcessTask(function()
-                    if args then
-                        observer:OnNext(func(unpack(args)))
-                    else
-                        observer:OnNext(func(a1, a2, a3, a4))
-                    end
-                    observer:OnCompleted()
-                end)
-            end)
+            return _StartGen[select("#", ...)](func, ...)
         end
 
         -----------------------------------------------------------------------
@@ -203,14 +253,7 @@ PLoop(function(_ENV)
         --                              method                               --
         -----------------------------------------------------------------------
         local function subscribe(self, observer)
-            local ok, ret       = pcall(self.SubscribeCore, observer)
-            if not ok then
-                if not IsObjectType(ret, Exception) then
-                    observer:OnError(Exception(tostring(ret)))
-                else
-                    observer:OnError(ret)
-                end
-            end
+            self.SubscribeCore(observer)
             return observer
         end
 
@@ -229,5 +272,31 @@ PLoop(function(_ENV)
         function __ctor(self, subscribe)
             self.SubscribeCore  = subscribe
         end
+    end)
+
+    --- The attribute used to wrap a function that return operator to be an Observable, so could be re-used
+    __Sealed__() class "__Observable__" (function(_ENV)
+        extend "IInitAttribute"
+
+        local Defer             = Observable.Defer
+
+        -----------------------------------------------------------
+        --                        method                         --
+        -----------------------------------------------------------
+        function InitDefinition(self, target, targettype, definition, owner, name, stack)
+            return function(...)
+                return Defer(target, ...)
+            end
+        end
+
+        -----------------------------------------------------------
+        --                       property                        --
+        -----------------------------------------------------------
+        --- the attribute target
+        property "AttributeTarget"  { type = AttributeTargets,  default = AttributeTargets.Method + AttributeTargets.Function }
+
+        property "Priority"         { type = AttributePriority, default = AttributePriority.Lower }
+
+        property "SubLevel"         { type = Number, default = -9999 }
     end)
 end)
