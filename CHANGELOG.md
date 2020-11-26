@@ -1,8 +1,26 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.6.25] - 2020-11-26 WangXH <kurapica125@outlook.com>
+### Added
+- A new platform setting `THREAD_POOL_CONTEXT_ONLY` is added, to be used in servers, so each context use its own thread pool, the default pool is disabled. Platform like OpenResty should turn on it, and the `MULTI_OS_THREAD` setting is no need to be used by OpenResty.
 
-## [1.6.21] = 2020-09-14 WangXH <kurapica125@outlook.com>
+## [1.6.24] - 2020-11-24 WangXH <kurapica125@outlook.com>
+### Changed
+- Fix the Delegate invoke error if remove handler from it.
+
+
+## [1.6.22] - 2020-11-20 WangXH <kurapica125@outlook.com>
+### Added
+- The `TemplateString` system is added in System.Text, it provided a new string generator.
+- The `PLOOP_PLATFORM_SETTINGS.DATA_CACHE_USE_FAKE_ENTITY` setting is added, so the data cache system will use fake cahe value to avoid cache penetration automatically, default true.
+- The `PLOOP_PLATFORM_SETTINGS.DATA_CACHE_FAKE_ENTITY_TIMEOUT` setting is added, it's the timeout for the fake values of the data cache, default 3600(second).
+
+### Changed
+- Improve the Reactive System
+
+
+## [1.6.21] - 2020-09-14 WangXH <kurapica125@outlook.com>
 ### Added
 - The `__BaseIndex__` attribute is added for enum, it works like `__BaseIndex__(100) enum "Test" { A = 1, B = 2 }`, the base value will be added to the enum values, so `Test.A` will be 101, the enum value is limited to [1-99] based on the zero numbers of the base value.
 
