@@ -284,9 +284,7 @@ PLoop(function(_ENV)
         --                        method                         --
         -----------------------------------------------------------
         function InitDefinition(self, target, targettype, definition, owner, name, stack)
-            return function(...)
-                return Defer(target, ...)
-            end
+            return function(...) return Defer(target, ...) end
         end
 
         -----------------------------------------------------------

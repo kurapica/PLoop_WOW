@@ -311,4 +311,34 @@ PLoop(function(_ENV)
             super(self)
         end
     end)
+
+    --- A subject used to generate single literal value and provide the `__concat` meta-method
+    -- so it can be used like `"ID: " .. subject`
+    __Sealed__() class "LiteralSubject" (function(_ENV)
+        inherit "Subject"
+
+        export{ strformat = string.format, tostring = tostring, type = type, isObjectType = Class.IsObjectType, IObservable, Observable, LiteralSubject }
+
+        local function concat(a, b)
+            return tostring(a) .. tostring(b)
+        end
+
+        __Arguments__{ NEString }
+        function Format(self, fmt)
+            return LiteralSubject(self:Map(function(val) return val and strformat(fmt, tostring(val)) or "" end))
+        end
+
+        -----------------------------------------------------------------------
+        --                            meta-method                            --
+        -----------------------------------------------------------------------
+        function __concat(prev, tail)
+            if not isObjectType(prev, IObservable) then
+                prev            = Observable.Just(tostring(prev))
+            elseif not isObjectType(tail, IObservable) then
+                tail            = Observable.Just(tostring(tail))
+            end
+
+            return LiteralSubject(prev:CombineLatest(tail, concat))
+        end
+    end)
 end)

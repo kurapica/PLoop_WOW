@@ -7,3 +7,8 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+System/Data
+System/IO
+System/Net
+System/Web
