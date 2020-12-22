@@ -33,8 +33,8 @@
 -- Author       :   kurapica125@outlook.com                                  --
 -- URL          :   http://github.com/kurapica/PLoop                         --
 -- Create Date  :   2017/04/02                                               --
--- Update Date  :   2020/12/07                                               --
--- Version      :   1.6.26                                                   --
+-- Update Date  :   2020/12/22                                               --
+-- Version      :   1.6.27                                                   --
 --===========================================================================--
 
 -------------------------------------------------------------------------------
@@ -8100,7 +8100,8 @@ do
                 local info      = fromobj and _ICInfo[target] or getICTargetInfo(target)
                 if info and type(name) == "string" then
                     info        = info[fromobj and FLD_IC_OBJFTR or FLD_IC_TYPFTR]
-                    return info and info[name]
+                    info        = info and info[name]
+                    return info and info:GetFeature()
                 end
             end;
 
@@ -8117,7 +8118,12 @@ do
                 local info      = fromobj and _ICInfo[target] or getICTargetInfo(target)
                 if info then
                     local typftr= info[fromobj and FLD_IC_OBJFTR or FLD_IC_TYPFTR]
-                    if typftr then return function(self, n) return next(typftr, n) end, target end
+                    if typftr then
+                        return function(self, n)
+                            local name, ftr = next(typftr, n)
+                            if name then return name, ftr:GetFeature() end
+                        end, target
+                    end
                 end
                 return fakefunc, target
             end;
@@ -10449,6 +10455,14 @@ do
                 end
             end;
 
+            --- Get the feature itself
+            -- @static
+            -- @method  GetFeature()
+            -- @owner   event
+            -- @param   target                      the target event
+            -- @return  event
+            ["GetFeature"]      = function(self) return self end;
+
             --- Get the event change handler
             -- @static
             -- @method  GetEventChangeHandler
@@ -10621,6 +10635,7 @@ do
         end;
         __index                 = {
             ["Get"]             = event.Get;
+            ["GetFeature"]      = event.GetFeature;
             ["GetEventChangeHandler"] = event.GetEventChangeHandler;
             ["Invoke"]          = invokeEvent;
             ["IsShareable"]     = event.IsShareable;
@@ -11781,8 +11796,16 @@ do
                     genPropertyGet(info)
                 end
 
-                return { Get = info[FLD_PROP_RAWGET], Set = info[FLD_PROP_RAWSET] }
+                return { Get = info[FLD_PROP_RAWGET], Set = info[FLD_PROP_RAWSET], GetFeature = function() return self end }
             end;
+
+            --- Get the feature itself
+            -- @static
+            -- @method  GetFeature()
+            -- @owner   property
+            -- @param   target                      the target property
+            -- @return  property
+            ["GetFeature"]      = function(self) return self end;
 
             --- Get the property field if existed
             -- @static
@@ -12160,6 +12183,7 @@ do
         end;
         __index                 = {
             ["GetAccessor"]     = property.GetAccessor;
+            ["GetFeature"]      = property.GetFeature;
             ["GetField"]        = property.GetField;
             ["IsGetClone"]      = property.IsGetClone;
             ["IsGetDeepClone"]  = property.IsGetDeepClone;
@@ -13592,6 +13616,12 @@ do
     --- Represents class type
     __Sealed__() struct "System.ClassType"          { genTypeValidator(class)       }
 
+    --- Represent a property
+    __Sealed__() struct "System.PropertyType"       { genTypeValidator(property)    }
+
+    --- Represents an event
+    __Sealed__() struct "System.EventType"          { genTypeValidator(event)       }
+
     --- Represents any validation type
     __Sealed__() AnyType = struct "System.AnyType"  { function(val, onlyvalid) return not getprototypemethod(val, "ValidateValue") and (onlyvalid or "the %s is not a validation type") or nil end}
 
@@ -14060,8 +14090,8 @@ do
         --- A fake function that do nothing
         fakefunc                = fakefunc,
 
-        --- A function used to return an empty table
-        newtable                = function() return {} end,
+        --- A function used to return an empty table with weak settings
+        newtable                = function(weakKey, weakVal) return weakKey and setmetatable({}, weakVal and WEAK_ALL or WEAK_KEY) or weakVal and setmetatable({}, WEAK_VALUE) or {} end,
     }
 
     -----------------------------------------------------------------------
