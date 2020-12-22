@@ -39,7 +39,7 @@
     <!--System.Reactive-->
     <Script file="System\Observer.lua"/>
     <Script file="System\Reactive\Observer.lua"/>
-    <Script file="System\Reactive\Observable.lua"/>
     <Script file="System\Reactive\Subject.lua"/>
+    <Script file="System\Reactive\Observable.lua"/>
     <Script file="System\Reactive\Operator.lua"/>
 </Ui>
