@@ -6,8 +6,8 @@
 
     <!--System-->
     <Script file="System\Collections.lua"/>
-    <Script file="System\Text.lua"/>
     <Script file="System\Threading.lua"/>
+    <Script file="System\Text.lua"/>
     <Script file="System\Serialization.lua"/>
     <Script file="System\Date.lua"/>
     <Script file="System\Logger.lua"/>
@@ -29,13 +29,11 @@
     <Script file="System\Serialization\StringFormatProvider.lua"/>
 
     <!--System.Text-->
-    <Script file="System\Text\StringReader.lua"/>
-    <Script file="System\Text\StringWriter.lua"/>
     <Script file="System\Text\UTF8Encoding.lua"/>
     <Script file="System\Text\UTF16Encoding.lua"/>
-    <Script file="System\Text\Encoder.lua"/>
-    <Script file="System\Text\TemplateString.lua"/>
+    <Script file="System\Text\XmlEntity.lua"/>
     <Script file="System\Text\Base64.lua"/>
+    <Script file="System\Text\TemplateString.lua"/>
 
     <!--System.Reactive-->
     <Script file="System\Observer.lua"/>
