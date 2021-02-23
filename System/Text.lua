@@ -24,6 +24,8 @@ PLoop(function(_ENV)
         validateValue           = Struct.ValidateValue,
         RunIterator             = Threading.RunIterator,
 
+        DEFAULT_BLOCK           = 32768,
+
         Prototype, Namespace, Toolset, Iterable
     }
 
@@ -32,14 +34,14 @@ PLoop(function(_ENV)
     namespace "System.Text"
 
     __Sealed__() __AutoIndex__()
-    enum "TextReaderStrategy" { "CHAR", "LINE", "ALL", "BLOCK" }
+    enum "TextReaderStrategy" { "CHAR", "LINE", "ALL", "BLOCK", "READER" }
 
     __Sealed__()
     struct "EncodingDefinition" {
         { name = "encode",  type = Function, require = true },
         { name = "decode",  type = Function, require = true },
         { name = "strategy",type = TextReaderStrategy, default = TextReaderStrategy.LINE },
-        { name = "block",   type = Number,   default = 32 * 1024 },
+        { name = "block",   type = NaturalNumber },
     }
 
     __Iterator__()
@@ -56,6 +58,7 @@ PLoop(function(_ENV)
         elseif strategy == TextReaderStrategy.ALL then
             yield(reader.Position + 1, reader:ReadToEnd())
         elseif strategy == TextReaderStrategy.BLOCK then
+            block               = block or DEFAULT_BLOCK
             local index         = reader.Position + 1
             local text          = reader:Read(block)
             while text do
@@ -205,7 +208,7 @@ PLoop(function(_ENV)
     --                         Encoder & Decoder                         --
     -----------------------------------------------------------------------
     __Iterator__()
-    function IterReader(encode, reader, strategy, block, ...)
+    function IterReaderEncoder(encode, reader, strategy, block, ...)
         for i, str in iterReader(reader, strategy, block) do
             for res in RunIterator(encode, str, ...) do
                 yield(res)
@@ -229,29 +232,64 @@ PLoop(function(_ENV)
         return Namespace.SaveNamespace(name, Prototype {
             __index             = {
                 -- Decode string or string from a reader to an iterator
-                Decodes         = function(str, ...)
+                Decodes         = strategy == TextReaderStrategy.READER and function(reader, ...)
+                    if type(reader) == "string" then
+                        reader  = StringReader(reader)
+                    end
+                    if istype(reader, TextReader) then
+                        return RunIterator(decode, reader, ...)
+                    else
+                        error("Usage: " .. name .. ".Decodes(string|System.Text.TextReader)", 2)
+                    end
+                end or function(str, ...)
                     if type(str) == "string" then
                         return RunIterator(decode, str, ...)
                     elseif istype(str, TextReader) then
-                        return IterReader(decode, str, strategy, block, ...)
+                        return IterReaderEncoder(decode, str, strategy, block, ...)
                     else
                         error("Usage: " .. name .. ".Decodes(string|System.Text.TextReader)", 2)
                     end
                 end,
 
                 -- Encode string or string from a reader to an iterator
-                Encodes         = function(str, ...)
+                Encodes         = strategy == TextReaderStrategy.READER and function(reader, ...)
+                    if type(reader) == "string" then
+                        reader  = StringReader(reader)
+                    end
+                    if istype(reader, TextReader) then
+                        return RunIterator(encode, reader, ...)
+                    else
+                        error("Usage: " .. name .. ".Encodes(string|System.Text.TextReader)", 2)
+                    end
+                end or function(str, ...)
                     if type(str) == "string" then
                         return RunIterator(encode, str, ...)
                     elseif istype(str, TextReader) then
-                        return IterReader(encode, str, strategy, block, ...)
+                        return IterReaderEncoder(encode, str, strategy, block, ...)
                     else
-                        error("Usage: " .. name .. ".Decodes(string|System.Text.TextReader)", 2)
+                        error("Usage: " .. name .. ".Encodes(string|System.Text.TextReader)", 2)
                     end
                 end,
 
                 -- Decode string or string from a reader
-                Decode          = function (str, ...)
+                Decode          = strategy == TextReaderStrategy.READER and function(reader, ...)
+                    if type(reader) == "string" then
+                        reader  = StringReader(reader)
+                    end
+                    if istype(reader, TextReader) then
+                        local w = StringWriter()
+                        w:Open()
+
+                        for res in RunIterator(decode, reader, ...) do
+                            w:Write(res)
+                        end
+
+                        w:Close()
+                        return w:ToString()
+                    else
+                        error("Usage: " .. name .. ".Decode(string|System.Text.TextReader)", 2)
+                    end
+                end or function (str, ...)
                     if type(str) == "string" then
                         local w = StringWriter()
                         w:Open()
@@ -278,7 +316,24 @@ PLoop(function(_ENV)
                 end,
 
                 -- Encode string or string from a reader
-                Encode          = function (str, ...)
+                Encode          = strategy == TextReaderStrategy.READER and function(reader, ...)
+                    if type(reader) == "string" then
+                        reader  = StringReader(reader)
+                    end
+                    if istype(reader, TextReader) then
+                        local w = StringWriter()
+                        w:Open()
+
+                        for res in RunIterator(encode, reader, ...) do
+                            w:Write(res)
+                        end
+
+                        w:Close()
+                        return w:ToString()
+                    else
+                        error("Usage: " .. name .. ".Encode(string|System.Text.TextReader)", 2)
+                    end
+                end or function (str, ...)
                     if type(str) == "string" then
                         local w = StringWriter()
                         w:Open()
@@ -451,6 +506,7 @@ PLoop(function(_ENV)
             strfind                 = string.find,
             strmatch                = string.match,
             floor                   = math.floor,
+            min                     = math.min,
             max                     = math.max,
         }
 
@@ -461,9 +517,9 @@ PLoop(function(_ENV)
             set                     = function(self, pos)
                 pos                 = floor(pos)
                 if pos < 0 then
-                    self.__seekpos  = max(0, self.__length + pos)
+                    self.__seekpos  = min(max(0, self.__length + pos), self.__length)
                 else
-                    self.__seekpos  = max(0, pos)
+                    self.__seekpos  = min(pos, self.__length)
                 end
             end,
         }
@@ -525,8 +581,8 @@ PLoop(function(_ENV)
 
             local pos               = self.__seekpos + 1
             if pos <= self.__length then
-                self.__seekpos      = pos + count - 1
-                return strsub(self.__content, pos, pos + count - 1)
+                self.__seekpos      = min(self.__length, pos + count - 1)
+                return strsub(self.__content, pos, self.__seekpos)
             end
         end
 

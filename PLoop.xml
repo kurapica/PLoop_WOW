@@ -28,12 +28,19 @@
     <Script file="System\Serialization\LuaFormatProvider.lua"/>
     <Script file="System\Serialization\StringFormatProvider.lua"/>
 
-    <!--System.Text-->
+    <!--System.Text.Encoding-->
     <Script file="System\Text\UTF8Encoding.lua"/>
     <Script file="System\Text\UTF16Encoding.lua"/>
+
+    <!--System.Text.Encoder-->
     <Script file="System\Text\XmlEntity.lua"/>
     <Script file="System\Text\Base64.lua"/>
+    <Script file="System\Text\Deflate.lua"/>
+
+    <!--System.Text-->
+    <Script file="System\Text\Crc.lua"/>
     <Script file="System\Text\TemplateString.lua"/>
+
 
     <!--System.Reactive-->
     <Script file="System\Observer.lua"/>
