@@ -1,3 +1,9 @@
 package-as: PLoop
 
 manual-changelog: CHANGELOG.md
+
+ignore:
+    - System/Data
+    - System/IO
+    - System/Net
+    - System/Web
